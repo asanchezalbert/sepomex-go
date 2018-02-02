@@ -45,11 +45,15 @@ type Neighborhood struct {
 	Name           string `gorm:"size:255;not null"`
 	Code           string `gorm:"size:4;not null"`
 	PostalCode     string `gorm:"size:5;not null"`
-	Zone           string `gorm:"size:6;not null"`
+	Zone           string `gorm:"size:10;not null"`
 	TypeID         uint   `gorm:"not null"`
 	MunicipalityID uint   `gorm:"not null"`
-	CityID         uint   `gorm:"not null"`
-	StateID        uint   `gorm:"not null"`
+	CityID         uint
+	StateID        uint `gorm:"not null"`
+}
+
+func Clean(c *xlsx.Cell) string {
+	return strings.Trim(c.String(), " ")
 }
 
 func main() {
@@ -85,7 +89,7 @@ func main() {
 
 			// Create State
 
-			code := row.Cells[7].String() // c_estado
+			code := Clean(row.Cells[7]) // c_estado
 
 			if db.First(state, "code = ?", code).RecordNotFound() {
 				state = &State{
@@ -98,11 +102,11 @@ func main() {
 
 			// Create Municipality
 
-			code = row.Cells[11].String() // c_mnpio
+			code = Clean(row.Cells[11]) // c_mnpio
 
 			if db.First(municipality, "code = ?", code).RecordNotFound() {
 				municipality = &Municipality{
-					Name:    row.Cells[3].String(), // D_mnpio
+					Name:    Clean(row.Cells[3]), // D_mnpio
 					Code:    code,
 					StateID: state.ID,
 				}
@@ -112,25 +116,27 @@ func main() {
 
 			// Create City
 
-			code = row.Cells[14].String() // c_cve_ciudad
+			if Clean(row.Cells[5]) != "" {
+				code = Clean(row.Cells[14]) // c_cve_ciudad
 
-			if db.First(city, "code = ?", code).RecordNotFound() {
-				city = &City{
-					Name:    row.Cells[5].String(), // d_ciudad
-					Code:    code,
-					StateID: state.ID,
+				if db.First(city, "code = ?", code).RecordNotFound() {
+					city = &City{
+						Name:    Clean(row.Cells[5]), // d_ciudad
+						Code:    code,
+						StateID: state.ID,
+					}
+
+					db.Create(city)
 				}
-
-				db.Create(city)
 			}
 
 			// Create NeighborhoodType
 
-			code = row.Cells[10].String() // c_tipo_asenta
+			code = Clean(row.Cells[10]) // c_tipo_asenta
 
 			if db.First(t, "code = ?", code).RecordNotFound() {
 				t = &NeighborhoodType{
-					Name: row.Cells[2].String(), // d_tipo_asenta
+					Name: Clean(row.Cells[2]), // d_tipo_asenta
 					Code: code,
 				}
 
@@ -139,20 +145,18 @@ func main() {
 
 			// Create Neighborhood
 
-			code = row.Cells[12].String() // id_asenta_cpcons
+			code = Clean(row.Cells[12]) // id_asenta_cpcons
 
 			db.Create(&Neighborhood{
-				Name:           row.Cells[1].String(), // d_asenta
+				Name:           Clean(row.Cells[1]), // d_asenta
 				Code:           code,
-				PostalCode:     row.Cells[0].String(),  // d_codigo
-				Zone:           row.Cells[13].String(), // d_zona
+				PostalCode:     Clean(row.Cells[0]),  // d_codigo
+				Zone:           Clean(row.Cells[13]), // d_zona
 				TypeID:         t.ID,
 				MunicipalityID: municipality.ID,
 				CityID:         city.ID,
 				StateID:        state.ID,
 			})
 		}
-
-		break
 	}
 }
