@@ -1,10 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 
+	"github.com/jinzhu/gorm"
 	"github.com/tealeg/xlsx"
+
+	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
 // State represents a country state
@@ -57,35 +59,91 @@ func main() {
 		panic(err)
 	}
 
+	db, err := gorm.Open("postgres", "user=postgres dbname=sepo password=postgres port=32768 sslmode=disable")
+
+	if err != nil {
+		panic(err)
+	}
+
+	db.SingularTable(true)
+
+	db.AutoMigrate(&State{})
+	db.AutoMigrate(&Municipality{})
+	db.AutoMigrate(&City{})
+	db.AutoMigrate(&NeighborhoodType{})
+	db.AutoMigrate(&Neighborhood{})
+
+	state := new(State)
+	municipality := new(Municipality)
+	city := new(City)
+	t := new(NeighborhoodType)
+
 	for _, sheet := range f.Sheets[1:] {
-		state := strings.Replace(sheet.Name, "_", " ", -1)
+		name := strings.Replace(sheet.Name, "_", " ", -1)
 
 		for _, row := range sheet.Rows[1:] {
-			state := &State{
-				Name: state,
-				Code: row.Cells[7].String(), // c_estado
+
+			// Create State
+
+			code := row.Cells[7].String() // c_estado
+
+			if db.First(state, "code = ?", code).RecordNotFound() {
+				state = &State{
+					Name: name,
+					Code: code,
+				}
+
+				db.Create(state)
 			}
 
-			municipality := &Municipality{
-				Name:    row.Cells[3].String(),  // D_mnpio
-				Code:    row.Cells[11].String(), // c_mnpio
-				StateID: state.ID,
+			// Create Municipality
+
+			code = row.Cells[11].String() // c_mnpio
+
+			if db.First(municipality, "code = ?", code).RecordNotFound() {
+				municipality = &Municipality{
+					Name:    row.Cells[3].String(), // D_mnpio
+					Code:    code,
+					StateID: state.ID,
+				}
+
+				db.Create(municipality)
 			}
 
-			city := &City{
-				Name:    row.Cells[5].String(),  // d_ciudad
-				Code:    row.Cells[14].String(), // c_cve_ciudad
-				StateID: state.ID,
+			// Create City
+
+			code = row.Cells[14].String() // c_cve_ciudad
+
+			if db.First(city, "code = ?", code).RecordNotFound() {
+				city = &City{
+					Name:    row.Cells[5].String(), // d_ciudad
+					Code:    code,
+					StateID: state.ID,
+				}
+
+				db.Create(city)
 			}
 
-			t := &NeighborhoodType{
-				Name: row.Cells[2].String(),  // d_tipo_asenta
-				Code: row.Cells[10].String(), // c_tipo_asenta
+			// Create NeighborhoodType
+
+			code = row.Cells[10].String() // c_tipo_asenta
+
+			if db.First(t, "code = ?", code).RecordNotFound() {
+				t = &NeighborhoodType{
+					Name: row.Cells[2].String(), // d_tipo_asenta
+					Code: code,
+				}
+
+				db.Create(t)
 			}
 
-			fmt.Println(&Neighborhood{
-				Name:           row.Cells[1].String(),  // d_asenta
-				Code:           row.Cells[12].String(), // id_asenta_cpcons
+			// Create Neighborhood
+
+			code = row.Cells[12].String() // id_asenta_cpcons
+
+			db.Create(&Neighborhood{
+				Name:           row.Cells[1].String(), // d_asenta
+				Code:           code,
 				PostalCode:     row.Cells[0].String(),  // d_codigo
 				Zone:           row.Cells[13].String(), // d_zona
 				TypeID:         t.ID,
@@ -93,8 +151,6 @@ func main() {
 				CityID:         city.ID,
 				StateID:        state.ID,
 			})
-
-			break
 		}
 
 		break
