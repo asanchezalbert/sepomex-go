@@ -19,7 +19,7 @@ type State struct {
 // Municipality represents a municipality in a state
 type Municipality struct {
 	ID      uint
-	Name    string `gorm:"size:255;not null"`
+	Name    string `gorm:"size:60;not null"`
 	Code    string `gorm:"size:3;not null"`
 	StateID uint   `gorm:"not null"`
 }
@@ -27,7 +27,7 @@ type Municipality struct {
 // City represents a city in a state
 type City struct {
 	ID      uint
-	Name    string `gorm:"size:255;not null"`
+	Name    string `gorm:"size:60;not null"`
 	Code    string `gorm:"size:2;not null"`
 	StateID uint   `gorm:"not null"`
 }
@@ -35,14 +35,14 @@ type City struct {
 // NeighborhoodType represents a type of neighborhood
 type NeighborhoodType struct {
 	ID   uint
-	Name string `gorm:"size:255;not null"`
+	Name string `gorm:"size:32;not null"`
 	Code string `gorm:"size:2;not null"`
 }
 
 // Neighborhood represents a neighborhood in a municipality
 type Neighborhood struct {
 	ID             uint
-	Name           string `gorm:"size:255;not null"`
+	Name           string `gorm:"size:80;not null"`
 	Code           string `gorm:"size:4;not null"`
 	PostalCode     string `gorm:"size:5;not null"`
 	Zone           string `gorm:"size:10;not null"`
@@ -63,7 +63,7 @@ func main() {
 		panic(err)
 	}
 
-	db, err := gorm.Open("postgres", "user=postgres dbname=sepo password=postgres port=32768 sslmode=disable")
+	db, err := gorm.Open("postgres", "user=postgres dbname=sepo password=postgres port=5432 sslmode=disable")
 
 	if err != nil {
 		panic(err)
@@ -77,15 +77,19 @@ func main() {
 	db.AutoMigrate(&NeighborhoodType{})
 	db.AutoMigrate(&Neighborhood{})
 
-	state := new(State)
-	municipality := new(Municipality)
-	city := new(City)
-	t := new(NeighborhoodType)
-
 	for _, sheet := range f.Sheets[1:] {
 		name := strings.Replace(sheet.Name, "_", " ", -1)
 
 		for _, row := range sheet.Rows[1:] {
+
+			if row.Cells[0].String() == "" {
+				continue
+			}
+
+			state := new(State)
+			municipality := new(Municipality)
+			city := new(City)
+			t := new(NeighborhoodType)
 
 			// Create State
 
@@ -104,7 +108,7 @@ func main() {
 
 			code = Clean(row.Cells[11]) // c_mnpio
 
-			if db.First(municipality, "code = ?", code).RecordNotFound() {
+			if db.First(municipality, "code = ? AND state_id = ?", code, state.ID).RecordNotFound() {
 				municipality = &Municipality{
 					Name:    Clean(row.Cells[3]), // D_mnpio
 					Code:    code,
@@ -119,7 +123,7 @@ func main() {
 			if Clean(row.Cells[5]) != "" {
 				code = Clean(row.Cells[14]) // c_cve_ciudad
 
-				if db.First(city, "code = ?", code).RecordNotFound() {
+				if db.First(city, "code = ? AND state_id = ?", code, state.ID).RecordNotFound() {
 					city = &City{
 						Name:    Clean(row.Cells[5]), // d_ciudad
 						Code:    code,
